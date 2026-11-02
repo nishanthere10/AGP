@@ -1,0 +1,30 @@
+# Model weights — never commit
+models/
+*.gguf
+
+# Third-party checkouts
+third_party/
+
+# Build artifacts
+build/
+**/CMakeFiles/
+*.o
+*.a
+
+# Raw experiment outputs (keep summaries in reports/)
+results/**
+!results/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Runtime probe/workspace dirs (sandbox preflight, pilot workdir)
+sandbox_preflight_work/
+pilot_workdir/
+sandbox_probe/
+sandbox_probe_oracle/

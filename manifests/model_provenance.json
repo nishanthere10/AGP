@@ -1,0 +1,73 @@
+{
+  "manifest_version": "1.0",
+  "prepared": "2026-11-01",
+  "status": "PROPOSED — no artifacts downloaded or quantized yet",
+  "source_policy": {
+    "all_variants_same_checkpoint": true,
+    "single_pinned_llama_cpp": "aa94f2086147cd4bfbcff818ce998dffce5fcb39",
+    "no_third_party_gguf": true,
+    "no_requantize_from_q4": true,
+    "q8_is_not_full_precision": true,
+    "reference_condition": "F16"
+  },
+  "candidates": {
+    "primary_qwen2_5_coder_3b_instruct": {
+      "hf_repo": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "hf_revision": "488639f1ff808d1d3d0ba301aef8c11461451ec5",
+      "license": "qwen-research",
+      "license_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct/blob/main/LICENSE",
+      "architecture": "Qwen2ForCausalLM",
+      "num_parameters": 3085938688,
+      "layers": 36,
+      "context_length": 32768,
+      "tensor_type": "BF16",
+      "f16_weights_bytes": 6171927000,
+      "planned_artifacts": {
+        "f16": {"file": "qwen2.5-coder-3b-instruct-f16.gguf", "sha256": "PENDING_DOWNLOAD"},
+        "q8_0": {"file": "qwen2.5-coder-3b-instruct-Q8_0.gguf", "sha256": "PENDING_DOWNLOAD"},
+        "q6_k": {"file": "qwen2.5-coder-3b-instruct-Q6_K.gguf", "sha256": "PENDING_DOWNLOAD"},
+        "q4_k_m": {"file": "qwen2.5-coder-3b-instruct-Q4_K_M.gguf", "sha256": "PENDING_DOWNLOAD"},
+        "q3_k_m": {"file": "qwen2.5-coder-3b-instruct-Q3_K_M.gguf", "sha256": "PENDING_DOWNLOAD"},
+        "q2_k": {"file": "qwen2.5-coder-3b-instruct-Q2_K.gguf", "sha256": "PENDING_DOWNLOAD"}
+      }
+    },
+    "backup_qwen2_5_coder_7b_instruct": {
+      "hf_repo": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "hf_revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+      "license": "apache-2.0",
+      "license_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct/blob/main/LICENSE",
+      "architecture": "Qwen2ForCausalLM",
+      "num_parameters": 7615616512,
+      "layers": 28,
+      "context_length": 131072,
+      "tensor_type": "BF16",
+      "f16_weights_bytes": 15231271864,
+      "note": "F16 does NOT fit single 16GB T4 with headroom; backup only"
+    },
+    "secondary_family_optional_starcoder2_3b": {
+      "hf_repo": "bigcode/starcoder2-3b",
+      "hf_revision": "733247c55e3f73af49ce8e9c7949bf14af205928",
+      "license": "bigcode-openrail-m",
+      "architecture": "Starcoder2ForCausalLM",
+      "num_parameters": 3030371328,
+      "context_length": 16384,
+      "note": "Optional cross-family replication at same 3B size; higher floor risk"
+    }
+  },
+  "conversion_procedure": {
+    "step1": "python3 convert_hf_to_gguf.py <hf_dir> --outtype f16 --outfile <model>-f16.gguf",
+    "step2": [
+      "llama-quantize <model>-f16.gguf <model>-Q8_0.gguf Q8_0",
+      "llama-quantize <model>-f16.gguf <model>-Q6_K.gguf Q6_K",
+      "llama-quantize <model>-f16.gguf <model>-Q4_K_M.gguf Q4_K_M",
+      "llama-quantize <model>-f16.gguf <model>-Q3_K_M.gguf Q3_K_M",
+      "llama-quantize <model>-f16.gguf <model>-Q2_K.gguf Q2_K"
+    ]
+  },
+  "verification_plan": {
+    "source_checkpoint_hash": "compute sha256 over downloaded safetensors before conversion",
+    "artifact_hash": "sha256 of every GGUF immediately after quantization",
+    "smoke_test": "llama-cli --version + one short generation per variant",
+    "provenance_record": "revised version of this file filled in after download/conversion"
+  }
+}

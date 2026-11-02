@@ -1,0 +1,11 @@
+# Grammar for: {"fix": "corrected python function body"}
+# Must match from the opening brace to the closing brace.
+# Uses GGNF character classes and token-aware patterns.
+
+root ::= ws? "{" ws fix-kv ws "}" ws
+fix-kv ::= fix-key ws ":" ws fix-val
+fix-key ::= "\"fix\""
+fix-val ::= "\"" chars "\""
+chars ::= char*
+char ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})
+ws ::= [ \t\n\r]*

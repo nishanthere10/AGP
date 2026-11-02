@@ -1,0 +1,104 @@
+# LocalAgentBench — Model Configuration (Kaggle GPU Migration)
+# Prepared: 2026-11-01
+# Status: PROPOSED — pending user approval before any download/quantization.
+# Stop condition: this file defines *what* will run; nothing here authorizes
+# downloading or quantizing any artifact.
+
+model_selection:
+  primary:
+    name: Qwen2.5-Coder-3B-Instruct
+    hf_repo: Qwen/Qwen2.5-Coder-3B-Instruct
+    hf_revision: "488639f1ff808d1d3d0ba301aef8c11461451ec5"
+    license: qwen-research            # non-commercial research license; NOT Apache-2.0
+    license_url: https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct/blob/main/LICENSE
+    architecture: Qwen2ForCausalLM     # model_type qwen2 (llama.cpp supported)
+    num_parameters: 3.09e9
+    non_embedding_parameters: 2.77e9
+    layers: 36
+    attention_heads_gqa: 16Q / 2KV
+    context_length: 32768
+    tensor_type: BF16
+    f16_weights_bytes: 6171927000        # verified HF usedStorage (~6.17 GB)
+    notes: >
+      General code-instruction model (not repair-specialized) — clean for the
+      synthesis-vs-repair comparison. Best-in-class at 3B size; F16 fits a
+      single T4 (16 GB) with comfortable headroom. CAVEAT: Qwen Research
+      license = non-commercial research use; redistribution of weights is
+      restricted. Acceptable for an academic study; must be disclosed.
+
+  backup:
+    name: Qwen2.5-Coder-7B-Instruct
+    hf_repo: Qwen/Qwen2.5-Coder-7B-Instruct
+    hf_revision: "c03e6d358207e414f1eca0bb1891e29f1db0e242"
+    license: apache-2.0
+    license_url: https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct/blob/main/LICENSE
+    architecture: Qwen2ForCausalLM
+    num_parameters: 7.61e9
+    non_embedding_parameters: 6.53e9
+    layers: 28
+    attention_heads_gqa: 28Q / 4KV
+    context_length: 131072
+    tensor_type: BF16
+    f16_weights_bytes: 15231271864       # verified HF usedStorage (~15.2 GB)
+    notes: >
+      Apache-2.0; notably stronger code capability (~85 HumanEval pass@1,
+      vendor-reported). BUT F16 weights ≈ 15.2 GB leave < 1 GB headroom on a
+      16 GB T4 once KV-cache/activations are added -> F16 reference is NOT
+      viable on a single T4. Use only if F16 reference is dropped (highest
+      precision = Q8_0) or if a 24GB+ GPU is confirmed. Backup only.
+
+  secondary_family_optional:
+    name: StarCoder2-3B
+    hf_repo: bigcode/starcoder2-3b
+    hf_revision: "733247c55e3f73af49ce8e9c7949bf14af205928"
+    license: bigcode-openrail-m
+    architecture: Starcoder2ForCausalLM
+    num_parameters: 3.03e9
+    context_length: 16384
+    human_eval_pass1: 31.7               # official model-index (protocol differs from Qwen)
+    notes: >
+      Optional second family for cross-family replication at the same 3B size
+      and F16 fit. Weaker functional baseline (higher floor risk) — include
+      ONLY if the canary shows non-floor behavior. Not part of the default matrix.
+
+inference_backend:
+  runtime: llama.cpp (llama-completion)
+  pinned_commit: aa94f2086147cd4bfbcff818ce998dffce5fcb39   # existing local build
+  build_flags: CPU-only locally; CUDA-enabled build on Kaggle (same commit)
+  backend_identical_across_quant: true   # one backend, six variants
+
+conversion_pipeline:
+  source: original HF checkpoint (safetensors, BF16) at pinned revision
+  step1: python3 convert_hf_to_gguf.py <hf_dir> --outtype f16 --outfile <model>-f16.gguf
+  step2: llama-quantize <model>-f16.gguf <model>-Q8_0.gguf Q8_0
+          llama-quantize <model>-f16.gguf <model>-Q6_K.gguf  Q6_K
+          llama-quantize <model>-f16.gguf <model>-Q4_K_M.gguf Q4_K_M
+          llama-quantize <model>-f16.gguf <model>-Q3_K_M.gguf Q3_K_M
+          llama-quantize <model>-f16.gguf <model>-Q2_K.gguf  Q2_K
+  rules:
+    - All variants MUST derive from the same source checkpoint (same HF revision).
+    - One pinned llama.cpp version for conversion and quantization.
+    - NO third-party GGUF files; NO requantization of an existing Q4.
+    - Q8_0 is quantized, NOT full precision; F16 is the reference condition.
+    - Record sha256 of every produced artifact in manifests/model_provenance.json.
+
+quantization_ladder:
+  - f16        # reference
+  - q8_0
+  - q6_k
+  - q4_k_m
+  - q3_k_m
+  - q2_k
+
+resource_estimates:            # primary 3B, T4 16GB
+  f16_vram_estimate_gib: ~6.7   # 6.17 GB weights + KV/activations overhead
+  f16_fits_single_t4: true
+  q8_0_file_estimate_gib: ~3.4
+  q6_k_file_estimate_gib: ~2.6
+  q4_k_m_file_estimate_gib: ~1.9
+  q3_k_m_file_estimate_gib: ~1.5
+  q2_k_file_estimate_gib: ~1.1
+  all_variants_same_backend: true
+  note: >
+    Estimates are planning references from weight counts; verify with actual
+    `llama-cli --version`/`llama-bench` runs after conversion.

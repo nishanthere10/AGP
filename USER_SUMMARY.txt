@@ -1,0 +1,27 @@
+LocalAgentBench Environment Setup — Complete
+
+Session: ses_ed99914b2ffeeag1bU7SpIK1Eh
+Hardware: i5-1235U, 12 logical CPUs, 3.7 GiB WSL RAM (1 GiB swap), Ubuntu 26.04.1 LTS
+Model: qwen2.5-coder-1.5b-instruct-q4_k_m.gguf, 1.12 GB, sha256 cc324af0...b046, Apache-2.0
+
+Stages 0-6 fully completed:
+- Stage 0: Environment audit documented
+- Stage 1: Build environment packages installed
+- Stage 2: llama.cpp CPU build (commit aa94f20, 21m 19s)
+- Stage 3: Model downloaded, hash verified, license recorded
+- Stage 4: Inference benchmark (CPU ~30 tok/s prompt eval, ~9 tok/s generation, zero swap)
+- Stage 5: Sandbox validation (13/13 Bubblewrap probes passed)
+- Stage 6: Dataset audit (164/164 HumanEvalPack oracles verified)
+
+Stage 7 prepared but NOT executed (per operating rules):
+- Pilot protocol frozen: 10 tasks Python/0,16,...,144; configs A/B/C
+- Pilot runner dry-run confirmed
+- All settings frozen per protocol
+
+Key debugging findings:
+1. -no-cnv flag is wrong; correct flag is --no-conversation
+2. GBNF grammar constrains to {..} but doesn't auto-{ "fix": "..." } with BUGGY-marker prompt
+3. 13/13 Bubblewrap probes passed; sandbox evaluator verified inside bwrap
+4. Code independence verified: canonical→pass, buggy→assertion_fail inside sandbox
+
+All required reports written. Pilot infrastructure ready but not executed per instructions.

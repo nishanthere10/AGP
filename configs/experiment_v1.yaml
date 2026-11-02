@@ -1,0 +1,104 @@
+# LocalAgentBench — Experiment v1 Configuration (Kaggle GPU)
+# Prepared: 2026-11-01
+# Status: PROPOSED. Matrix is NOT authorized to run.
+# Stop condition: this file describes the experimental design; execution is
+# gated on (1) user approval and (2) the F16/Q8 canary passing (see below).
+
+experiment:
+  id: v1_quant_synth_vs_repair
+  research_question: >
+    Does quantization affect functional correctness differently for code
+    synthesis and code repair when both task modes are derived from the same
+    underlying programming problem and scored with the same hidden tests?
+
+dataset:
+  source: HumanEvalPack Python (existing 164-task parquet)
+  tasks: 164
+  modes:
+    synthesis:   specification + signature -> complete function
+    repair:      same specification + signature + buggy impl -> corrected function
+  pair_requirement: both modes share canonical solution and hidden tests
+  leakage_control: hidden tests & canonical solutions never enter the prompt
+  validation: 164/164 canonical pass, 164/164 buggy fail (verify before run)
+  split_manifest: manifests/dev_eval_split.json   # frozen dev/eval split
+  dev_tasks: 12   # canary & development only; excluded from confirmatory eval
+  eval_tasks: 152 # primary confirmatory analysis
+
+model:
+  primary: Qwen2.5-Coder-3B-Instruct      # see configs/models.yaml
+  quantization: [f16, q8_0, q6_k, q4_k_m, q3_k_m, q2_k]
+
+matrix:
+  generations: 164 tasks x 2 modes x 6 quant = 1968 planned
+  sampling: greedy decoding for initial exploratory screen
+  sampling_k: 1 (configurable later via config, no code change required)
+
+generation:
+  runtime: llama-completion (llama.cpp, pinned commit)
+  output_contract: >
+    Exactly one complete Python function definition, raw source.
+    No JSON wrapper. No Markdown fences.
+    (Matches post-v3.3 raw-source contract; fixes the v2/v3 JSON/grammar confounds.)
+  max_tokens: 512
+  context_length: 4096
+  temperature: 0.0         # greedy screen; sample temps added later if k>1
+  seed_schedule: deterministic per task (recorded)
+  stop_sequences: [<|im_end|>, "\n```"]
+  no_feedback_loop: true   # no retry/repair within this experiment
+  per_attempt_recording: true  # raw output, rc, latency, tokens, peak VRAM
+
+evaluation:
+  reuse: existing LocalAgentBench evaluator + Bubblewrap sandbox
+  syntax_check: true
+  functional_pass: all hidden tests pass (rc=0)
+  failure_classes:
+    - malformed_unparseable
+    - truncated_incomplete
+    - repeated_definitions_blocks
+    - syntax_error
+    - execution_error
+    - assertion_functional_failure
+    - timeout
+    - sandbox_failure
+    - passed_all_hidden_tests
+  separate_scorers: true   # distinct synthesis and repair scoring paths
+
+metrics:
+  per_cell:
+    - extractable_output_pct
+    - syntax_valid_output_pct
+    - functional_pass_rate
+    - generation_termination_reason
+    - generated_tokens
+    - generation_latency_s
+    - peak_vram_gib
+    - repetition_or_incomplete_flag
+  primary_endpoint: functional pass rate (synthesis vs repair) per quantization level
+
+canary_gate:                # BEFORE full matrix
+  name: baseline_feasibility_canary
+  tasks: 12 paired development tasks (excluded from final evaluation set)
+  conditions: [f16, q8_0]
+  modes: [synthesis, repair]
+  thresholds_set_before_run:
+    extractable_output_pct_min: 75      # 9/12 in EACH mode
+    syntax_valid_output_pct_min: 67     # 8/12 in EACH mode
+    functional_pass_min_each_mode: 3    # 3/12 functionally correct in EACH mode (F16)
+  q8_check: >
+    Test Q8_0 on the same 12 tasks. If Q8 behaves unexpectedly badly relative to
+    F16, inspect the conversion artifact before treating it as a genuine
+    quantization effect.
+  stop_rules:
+    - F16 must show non-floor functional success in BOTH modes (>=3/12 each).
+    - A mode with <9/12 extractable or <8/12 syntax-valid blocks the matrix.
+    - Do NOT proceed to Q6/Q4/Q3/Q2 if the baseline fails.
+    - Investigate prompt/model/evaluation; then decide whether to use backup model.
+    - Do NOT tune synthesis/repair prompts separately to inflate performance.
+    - The 12 dev tasks stay out of the final confirmatory analysis.
+
+order_and_hygiene:
+  - interleaved/randomized run order (thermal & background-load control)
+  - sequential execution, single model instance
+  - freeze model(s), prompt(s), output contract, sample count, analysis script
+    BEFORE running the matrix
+  - record environment per run (GPU type, VRAM, llama.cpp commit, CUDA version)
